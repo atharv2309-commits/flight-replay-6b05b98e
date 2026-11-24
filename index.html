@@ -146,7 +146,8 @@ h1 { margin: 0; font-size: 24px; line-height: 32px; font-weight: 500; text-wrap:
 .st-idle { background: var(--surface-3); color: var(--med); }
 .status .material-icons { font-size: 16px; }
 
-.events { max-height: 360px; overflow-y: auto; }
+.events { max-height: 360px; overflow-y: auto; position: relative; scroll-behavior: smooth; }
+@media (prefers-reduced-motion: reduce) { .events { scroll-behavior: auto; } }
 .ev { display: grid; grid-template-columns: 64px 1fr; gap: 12px; padding: 10px 16px; border: 0; border-bottom: 1px solid var(--outline-subtle); background: transparent; color: inherit; text-align: left; width: 100%; font: inherit; cursor: pointer; }
 .ev:hover { background: var(--hover); }
 .ev.active { background: var(--selected); }
@@ -444,7 +445,12 @@ h1 { margin: 0; font-size: 24px; line-height: 32px; font-weight: 500; text-wrap:
     scrub.setAttribute('aria-valuetext', fmt(t) + ' GMT');
 
     let active = null; for (const [et, b] of evEls) { if (t >= et) active = b; }
-    if (active !== lastActive) { evEls.forEach(([, b]) => b.classList.toggle('active', b === active)); lastActive = active; }
+    if (active !== lastActive) {
+      evEls.forEach(([, b]) => b.classList.toggle('active', b === active)); lastActive = active;
+      // Keep the current event in view inside the list (without scrolling the page)
+      if (active) { const top = active.offsetTop - evBox.clientHeight / 2 + active.offsetHeight / 2; evBox.scrollTop = Math.max(0, top); }
+      else evBox.scrollTop = 0;
+    }
   }
 
   function frame(now) {
