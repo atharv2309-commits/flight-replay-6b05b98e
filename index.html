@@ -83,7 +83,8 @@ h1 { margin: 0; font-size: 24px; line-height: 32px; font-weight: 500; text-wrap:
 .leaflet-control-attribution a { color: var(--primary) !important; }
 .leaflet-bar a, .leaflet-bar a:hover { background: var(--surface-2); color: var(--hi); border-bottom: 1px solid var(--outline); }
 .leaflet-bar { border: 1px solid var(--outline) !important; border-radius: var(--r) !important; overflow: hidden; box-shadow: none !important; }
-.map-tools { position: absolute; top: 12px; right: 12px; z-index: 500; display: flex; gap: 8px; }
+.map-tools { position: absolute; top: 12px; right: 12px; left: 64px; z-index: 500; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; pointer-events: none; }
+.map-tools > * { pointer-events: auto; }
 .seg { display: inline-flex; background: var(--surface-2); border: 1px solid var(--outline); border-radius: var(--r); overflow: hidden; }
 .seg button { border: 0; background: transparent; color: var(--med); font: 500 12px/1 var(--sans); padding: 8px 12px; cursor: pointer; }
 .seg button[aria-pressed="true"] { background: var(--selected); color: var(--primary); }
@@ -91,6 +92,7 @@ h1 { margin: 0; font-size: 24px; line-height: 32px; font-weight: 500; text-wrap:
 .legend { position: absolute; left: 12px; bottom: 28px; z-index: 500; background: hsla(0 0% 12% / .92); border: 1px solid var(--outline); border-radius: var(--r); padding: 10px 12px; display: grid; gap: 6px; font-size: 12px; color: var(--med); }
 .legend .row { display: flex; align-items: center; gap: 8px; }
 .legend i { width: 18px; height: 4px; border-radius: 2px; display: inline-block; }
+.legend-note { font-size: 11px; color: var(--med); max-width: 220px; line-height: 16px; }
 
 .ring-label { font: 500 11px/1 var(--mono); color: #fff; background: hsla(0 0% 7% / .75); padding: 4px 8px; border-radius: 3px; white-space: nowrap; transform: translate(-50%, -50%); }
 .pin-label { font: 500 11px/1.2 var(--sans); color: var(--hi); background: hsla(0 0% 12% / .92); border: 1px solid var(--outline); padding: 6px 10px; border-radius: var(--r-sm); white-space: nowrap; }
@@ -199,13 +201,19 @@ h1 { margin: 0; font-size: 24px; line-height: 32px; font-weight: 500; text-wrap:
             <button type="button" id="b-sat" aria-pressed="true">Satellite</button>
             <button type="button" id="b-map" aria-pressed="false">Map</button>
           </div>
+          <div class="seg" role="group" aria-label="Signal heatmap">
+            <button type="button" data-sig="rf" aria-pressed="true">Radio link heatmap</button>
+            <button type="button" data-sig="g4" aria-pressed="false">4G heatmap</button>
+            <button type="button" data-sig="off" aria-pressed="false">Off</button>
+          </div>
           <div class="seg"><button type="button" id="b-follow" aria-pressed="true">Follow drone</button></div>
         </div>
         <div class="legend" aria-label="Radio link legend">
-          <div class="overline">Radio link (dock to drone)</div>
+          <div class="overline" id="legend-title">Radio link (dock to drone)</div>
           <div class="row"><i style="background:var(--success)"></i>Good · 4–5 bars</div>
           <div class="row"><i style="background:var(--caution)"></i>Weak · 2–3 bars</div>
           <div class="row"><i style="background:var(--error)"></i>Very weak or lost · 0–1 bar</div>
+          <div class="legend-note" id="legend-note">Heatmap and path: radio link reported where the drone flew</div>
         </div>
       </div>
       <div class="player">
@@ -267,7 +275,7 @@ h1 { margin: 0; font-size: 24px; line-height: 32px; font-weight: 500; text-wrap:
       <li>Review the area about 1.5–2 km north of the dock for obstructions between the dock and the drone at this height (about 100 m above the dock).</li>
       <li>When the radio link drops to 1–2 bars, move the drone back towards the dock before it reaches this area.</li>
     </ul>
-    <p class="foot">Source: FlytBase flight telemetry for flight aa1fd799. Positions are 10-second averages of the drone's reported GPS position. Radio link is the lowest value reported by the dock in each 10 seconds. Heights are relative to the dock. All times GMT.</p>
+    <p class="foot">Source: FlytBase flight telemetry for flight aa1fd799. Positions are 10-second averages of the drone's reported GPS position. Radio link is the lowest value reported by the dock in each 10 seconds. Heights are relative to the dock. The heatmaps show the signal reported at the points the drone flew through; they are not a full coverage survey of the area. All times GMT.</p>
   </section>
 </main>
 
@@ -375,6 +383,26 @@ h1 { margin: 0; font-size: 24px; line-height: 32px; font-weight: 500; text-wrap:
   L.polyline(P.map(p => [p.lat, p.lon]), { color: '#ffffff', weight: 2, opacity: .25, dashArray: '4 6', interactive: false }).addTo(map);
   const trail = L.layerGroup().addTo(map);
 
+  // Signal heatmap: soft circles at each point the drone passed, coloured by the signal reported there
+  const heatRenderer = L.canvas({ padding: 0.5 });
+  const heat = L.layerGroup();
+  heat.addTo(map); heat.setZIndex && heat.setZIndex(1);
+  let sigMode = 'rf', heatBuiltTo = T0;
+  const HEAT_STEP = 4;
+  function heatValue(t) { return sigMode === 'g4' ? g4At(t) : rfAt(t); }
+  function pathValue(t) { return sigMode === 'g4' ? g4At(t) : rfAt(t); }
+  function addHeat(t) {
+    const q = posAt(t), v = heatValue(t);
+    heat.addLayer(L.circle([q.lat, q.lon], { radius: 85, stroke: false, fillColor: rfHex(v), fillOpacity: 0.16, renderer: heatRenderer, interactive: false }));
+    heat.addLayer(L.circle([q.lat, q.lon], { radius: 35, stroke: false, fillColor: rfHex(v), fillOpacity: 0.22, renderer: heatRenderer, interactive: false }));
+  }
+  function rebuildHeat(upTo) { heat.clearLayers(); heatBuiltTo = T0; if (sigMode !== 'off') extendHeat(upTo); }
+  function extendHeat(upTo) {
+    if (sigMode === 'off') return;
+    if (upTo < heatBuiltTo) { rebuildHeat(upTo); return; }
+    for (let s = heatBuiltTo + HEAT_STEP; s <= upTo; s += HEAT_STEP) { addHeat(s); heatBuiltTo = s; }
+  }
+
   // Area where control was lost
   L.circle(HOLD, { radius: 90, color: '#f0503f', weight: 2, dashArray: '4 4', fillColor: '#f0503f', fillOpacity: .12, interactive: false }).addTo(map);
   L.marker([HOLD[0] + 0.0013, HOLD[1]], { interactive: false, icon: L.divIcon({ className: '', html: '<div class="pin-label" style="transform:translate(-50%,-100%)">Control lost · held here 12:18–12:35</div>', iconSize: [0, 0] }) }).addTo(map);
@@ -417,13 +445,13 @@ h1 { margin: 0; font-size: 24px; line-height: 32px; font-weight: 500; text-wrap:
   function rebuildTrail(upTo) {
     trail.clearLayers();
     let prev = posAt(T0), pt = T0;
-    for (let s = T0 + 2; s <= upTo; s += 2) { const q = posAt(s); trail.addLayer(L.polyline([[prev.lat, prev.lon], [q.lat, q.lon]], { color: rfHex(rfAt(s)), weight: 4, opacity: .95, interactive: false })); prev = q; pt = s; }
+    for (let s = T0 + 2; s <= upTo; s += 2) { const q = posAt(s); trail.addLayer(L.polyline([[prev.lat, prev.lon], [q.lat, q.lon]], { color: rfHex(pathValue(s)), weight: 4, opacity: .95, interactive: false })); prev = q; pt = s; }
     builtTo = pt;
   }
   function extendTrail(upTo) {
     if (upTo < builtTo) { rebuildTrail(upTo); return; }
     let prev = posAt(builtTo);
-    for (let s = builtTo + 2; s <= upTo; s += 2) { const q = posAt(s); trail.addLayer(L.polyline([[prev.lat, prev.lon], [q.lat, q.lon]], { color: rfHex(rfAt(s)), weight: 4, opacity: .95, interactive: false })); prev = q; builtTo = s; }
+    for (let s = builtTo + 2; s <= upTo; s += 2) { const q = posAt(s); trail.addLayer(L.polyline([[prev.lat, prev.lon], [q.lat, q.lon]], { color: rfHex(pathValue(s)), weight: 4, opacity: .95, interactive: false })); prev = q; builtTo = s; }
   }
 
   function render() {
@@ -435,6 +463,7 @@ h1 { margin: 0; font-size: 24px; line-height: 32px; font-weight: 500; text-wrap:
     const bars = rfAt(t);
     if (el) { el.style.setProperty('--c', rfColor(bars)); const svg = el.querySelector('svg'); if (svg) svg.style.transform = `rotate(${heading}deg)`; }
     extendTrail(t);
+    extendHeat(t);
     if (follow) map.panTo(ll, { animate: false });
 
     $('clock').textContent = fmt(t);
@@ -470,9 +499,9 @@ h1 { margin: 0; font-size: 24px; line-height: 32px; font-weight: 500; text-wrap:
   function setPlaying(on) {
     playing = on; last = 0;
     $('play-ic').textContent = on ? 'pause' : 'play_arrow'; $('play-tx').textContent = on ? 'Pause' : 'Play';
-    if (on) { if (t >= T1) { t = T0; rebuildTrail(T0); } requestAnimationFrame(frame); }
+    if (on) { if (t >= T1) { t = T0; rebuildTrail(T0); rebuildHeat(T0); } requestAnimationFrame(frame); }
   }
-  function seek(nt) { t = Math.max(T0, Math.min(T1, nt)); if (t < builtTo) rebuildTrail(t); render(); }
+  function seek(nt) { t = Math.max(T0, Math.min(T1, nt)); if (t < builtTo) rebuildTrail(t); if (t < heatBuiltTo) rebuildHeat(t); render(); }
 
   $('play').addEventListener('click', () => setPlaying(!playing));
   $('restart').addEventListener('click', () => { seek(T0); setPlaying(true); });
@@ -484,6 +513,13 @@ h1 { margin: 0; font-size: 24px; line-height: 32px; font-weight: 500; text-wrap:
   $('b-sat').addEventListener('click', () => { map.removeLayer(dark); sat.addTo(map); satLabels.addTo(map);
   map.attributionControl.setPrefix('<a href="https://leafletjs.com" target="_blank" rel="noopener">Leaflet</a>'); $('b-sat').setAttribute('aria-pressed', 'true'); $('b-map').setAttribute('aria-pressed', 'false'); });
   $('b-map').addEventListener('click', () => { map.removeLayer(sat); map.removeLayer(satLabels); dark.addTo(map); $('b-map').setAttribute('aria-pressed', 'true'); $('b-sat').setAttribute('aria-pressed', 'false'); });
+  document.querySelectorAll('[data-sig]').forEach(b => b.addEventListener('click', () => {
+    sigMode = b.dataset.sig;
+    document.querySelectorAll('[data-sig]').forEach(x => x.setAttribute('aria-pressed', x === b ? 'true' : 'false'));
+    $('legend-title').textContent = sigMode === 'g4' ? '4G backup link' : 'Radio link (dock to drone)';
+    $('legend-note').textContent = sigMode === 'off' ? 'Path colour: radio link' : (sigMode === 'g4' ? 'Heatmap and path: 4G signal reported where the drone flew' : 'Heatmap and path: radio link reported where the drone flew');
+    rebuildHeat(t); rebuildTrail(t);
+  }));
   $('b-follow').addEventListener('click', e => { follow = !follow; e.currentTarget.setAttribute('aria-pressed', String(follow)); });
   document.addEventListener('keydown', e => { if (e.code === 'Space' && e.target === document.body) { e.preventDefault(); setPlaying(!playing); } });
 
