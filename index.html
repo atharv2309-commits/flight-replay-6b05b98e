@@ -182,7 +182,7 @@ h1 { margin: 0; font-size: 24px; line-height: 32px; font-weight: 500; text-wrap:
   <section class="head">
     <div class="overline">Flight replay · 24 Nov 2026 · 12:13–12:39 GMT</div>
     <h1>Loss of control signal during flight</h1>
-    <p class="summary">From 12:16 the radio link between the dock and the drone dropped to 1 of 5 bars and stayed there. At 12:18:30 the drone left live control and held its position about 1.85 km north of the dock. The connection between FlytBase and the dock stayed up for the whole flight: all 29 return-home commands sent between 12:20 and 12:35 reached the dock, but the dock could not pass them to the drone and each one timed out. The 4G backup link showed no signal for the whole flight. At 12:35:58 the drone started its own return to home. As it flew south the radio link came back to 5 bars, and it landed in the dock at 12:39.</p>
+    <p class="summary">From 12:16 the radio link between the dock and the drone dropped to 1 of 5 bars and stayed there. At 12:18:30 the drone left live control and held its position about 1.85 km north of the dock. The connection between FlytBase and the dock stayed up for the whole flight: all 29 return-home commands sent between 12:20 and 12:35 reached the dock, but the dock could not pass them to the drone and each one timed out. Enhanced Transmission (the 4G backup link) was on and connected at take-off, but its 4G link dropped at 12:14:15 and did not reconnect for the rest of the flight. At 12:35:58 the drone started its own return to home. As it flew south the radio link came back to 5 bars, and it landed in the dock at 12:39.</p>
     <div class="meta">
       <span class="chip">Flight ID <b>aa1fd799-25ed-45e3-a4e6-bb1d523972a6</b></span>
       <span class="chip">Dock <b>8UUXN7700A0DNS</b></span>
@@ -236,7 +236,7 @@ h1 { margin: 0; font-size: 24px; line-height: 32px; font-weight: 500; text-wrap:
         <div class="tele">
           <div class="r"><span class="k">Control</span><span class="v" id="v-ctl"></span></div>
           <div class="r"><span class="k">Radio link (dock to drone)</span><span class="v" id="v-rf"></span></div>
-          <div class="r"><span class="k">4G backup link</span><span class="v"><span class="bars" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>No signal</span></div>
+          <div class="r"><span class="k">4G backup link (Enhanced Transmission on)</span><span class="v" id="v-4g"></span></div>
           <div class="r"><span class="k">FlytBase to dock</span><span class="v" style="color:var(--success)">Connected</span></div>
           <div class="r"><span class="k">Distance from dock</span><span class="v" id="v-dist"></span></div>
           <div class="r"><span class="k">Height above dock</span><span class="v" id="v-alt"></span></div>
@@ -253,7 +253,7 @@ h1 { margin: 0; font-size: 24px; line-height: 32px; font-weight: 500; text-wrap:
   <section class="findings">
     <div class="panel kpi"><span class="overline">Radio link</span><span class="n" style="color:var(--error)">1 bar</span><p>From 12:16 to 12:35 over the area where the drone held position. 0 bars at 12:36.</p></div>
     <div class="panel kpi"><span class="overline">Return-home commands</span><span class="n" style="color:var(--error)">29</span><p>Sent 12:20–12:35. All reached the dock. Each timed out between the dock and the drone (DJI code 325004).</p></div>
-    <div class="panel kpi"><span class="overline">4G backup link</span><span class="n" style="color:var(--caution)">0 bars</span><p>No 4G signal for the whole flight, so the drone had no second path when the radio link weakened.</p></div>
+    <div class="panel kpi"><span class="overline">4G backup link</span><span class="n" style="color:var(--caution)">Lost 12:14</span><p>Enhanced Transmission was on. 4G connected at take-off, dropped at 12:14:15 and did not reconnect, so there was no second path when the radio link weakened.</p></div>
     <div class="panel kpi"><span class="overline">FlytBase to dock</span><span class="n" style="color:var(--success)">Up</span><p>No disconnections. The control heartbeat between FlytBase and the dock ran without a gap for the whole flight.</p></div>
   </section>
 
@@ -263,7 +263,7 @@ h1 { margin: 0; font-size: 24px; line-height: 32px; font-weight: 500; text-wrap:
     <p>Video and control both travel over DJI's radio link between the dock and the drone. When that link fell to 1 bar, the drone stopped accepting control commands while video continued to arrive. How the DJI link handles video and control when the signal is this weak is set by DJI's firmware, not by FlytBase.</p>
     <h2>What we recommend</h2>
     <ul>
-      <li>Check that 4G Enhanced Transmission is set up and has signal on this drone. With 4G available, the drone has a second path for control when the radio link weakens.</li>
+      <li>Check the 4G dongle and SIM on this drone (data plan and 4G coverage along this route). Enhanced Transmission was on, but its 4G link dropped one minute after take-off and did not reconnect. With 4G working, the drone has a second path for control when the radio link weakens.</li>
       <li>Review the area about 1.5–2 km north of the dock for obstructions between the dock and the drone at this height (about 100 m above the dock).</li>
       <li>When the radio link drops to 1–2 bars, move the drone back towards the dock before it reaches this area.</li>
     </ul>
@@ -301,6 +301,9 @@ h1 { margin: 0; font-size: 24px; line-height: 32px; font-weight: 500; text-wrap:
 
   // Radio link (dock SDR quality, 0–5 bars): [from second, bars]
   const RF = [[790,5],[910,4],[950,3],[960,2],[980,1],[990,2],[1000,3],[1040,2],[1050,3],[1060,2],[1080,1],[1090,3],[1110,1],[2160,0],[2180,2],[2190,3],[2200,2],[2210,4],[2270,5]];
+  // 4G link quality on the drone side (0–5 bars): [from second, bars]
+  const G4 = [[790,5],[855,0],[859,1],[867,0]];
+  const g4At = t => { let v = G4[0][1]; for (const [s, b] of G4) { if (t >= s) v = b; else break; } return v; };
   const rfAt = t => { let v = RF[0][1]; for (const [s, b] of RF) { if (t >= s) v = b; else break; } return v; };
   const rfColor = b => b >= 4 ? 'var(--success)' : b >= 2 ? 'var(--caution)' : 'var(--error)';
   const rfHex = b => b >= 4 ? '#2bc87b' : b >= 2 ? '#fdb022' : '#f0503f';
@@ -321,6 +324,7 @@ h1 { margin: 0; font-size: 24px; line-height: 32px; font-weight: 500; text-wrap:
   const EVENTS = [
     [803, 'Take-off from the dock', '', 'var(--info)'],
     [848, 'Live control active', 'Pilot flies the drone north.', 'var(--success)'],
+    [855, '4G backup link lost', 'Enhanced Transmission was on and 4G was connected at take-off. The 4G link dropped here and did not reconnect.', 'var(--caution)'],
     [910, 'Radio link starts to drop', '5 to 4 bars.', 'var(--caution)'],
     [980, 'Radio link down to 1 bar', 'Live control switches on and off as the signal changes.', 'var(--error)'],
     [1110, 'Live control lost', 'The drone holds its position about 1.85 km north of the dock. Radio link at 1 bar.', 'var(--error)'],
@@ -437,6 +441,8 @@ h1 { margin: 0; font-size: 24px; line-height: 32px; font-weight: 500; text-wrap:
     const ph = phaseAt(t);
     $('v-ctl').innerHTML = `<span class="status ${ph[2]}"><span class="material-icons">${ph[3]}</span>${ph[1]}</span>`;
     $('v-rf').innerHTML = `<span class="bars" aria-hidden="true">${[1, 2, 3, 4, 5].map(i => `<i style="background:${i <= bars ? rfColor(bars) : ''}"></i>`).join('')}</span>${bars} of 5`;
+    const g = g4At(t);
+    $('v-4g').innerHTML = `<span class="bars" aria-hidden="true">${[1, 2, 3, 4, 5].map(i => `<i style="background:${i <= g ? rfColor(g) : ''}"></i>`).join('')}</span>${g ? g + ' of 5' : 'Not connected'}`;
     $('v-dist').textContent = (dist(DOCK, ll) / 1000).toFixed(2) + ' km';
     $('v-alt').textContent = Math.max(0, Math.round(p.h - DOCK_H)) + ' m';
     $('v-bat').textContent = p.b + '%';
