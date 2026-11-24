@@ -1,0 +1,482 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<title>Flight Replay · 24 Nov 2026</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<style>
+/* Tokens follow the FlytBase Operations app (Nova design system, libs/common-ui/src/styles/foundation/_tokens.scss) */
+:root {
+  --bg: hsl(0 0% 7%);                 /* $background */
+  --surface: hsl(0 0% 12%);           /* $surfaces 900 */
+  --surface-2: hsl(0 0% 15%);         /* $surfaces 700 */
+  --surface-3: hsl(0 0% 19%);         /* $surfaces 500 */
+  --outline: hsla(0 0% 100% / .12);   /* $outline */
+  --outline-subtle: hsla(0 0% 100% / .07);
+  --hi: hsla(0 0% 100% / .87);        /* on-surface 100 */
+  --med: hsla(0 0% 100% / .6);        /* on-surface 200 */
+  --dis: hsla(0 0% 100% / .38);
+  --primary: hsl(217 95% 76%);        /* $primary 200 */
+  --primary-strong: hsl(217 96% 60%); /* $primary 400 */
+  --on-primary: hsla(0 0% 0% / .87);
+  --hover: hsla(217 95% 76% / .12);   /* surface-component hover */
+  --selected: hsla(217 95% 76% / .24);
+  --success: hsl(150 66% 48%);        /* $success 20 */
+  --success-bg: hsla(152 82% 40% / .15);
+  --caution: hsl(39 98% 56%);         /* $caution 30 */
+  --caution-bg: hsla(39 98% 56% / .15);
+  --error: hsl(4 86% 58%);            /* $error 30 */
+  --error-bg: hsla(4 86% 58% / .15);
+  --info: hsl(210 100% 70%);          /* $info 70 */
+  --info-bg: hsla(210 50% 55% / .3);
+  --r: 8px;                           /* $shape-4 */
+  --r-sm: 4px;                        /* $shape-3 */
+  --sans: 'DM Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --mono: 'DM Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--bg); color: var(--hi); font-family: var(--sans); font-size: 14px; line-height: 20px; -webkit-font-smoothing: antialiased; }
+.mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.material-icons { font-size: 20px; line-height: 1; vertical-align: middle; }
+
+/* App bar, like the Operations top bar */
+.appbar { height: 56px; display: flex; align-items: center; gap: 16px; padding: 0 max(16px, env(safe-area-inset-right)) 0 max(16px, env(safe-area-inset-left)); background: var(--surface); border-bottom: 1px solid var(--outline); position: sticky; top: 0; z-index: 1000; }
+.logo { height: 28px; width: auto; display: block; }
+.appbar .sep { width: 1px; height: 24px; background: var(--outline); }
+.appbar .crumb { color: var(--med); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.appbar .crumb b { color: var(--hi); font-weight: 500; }
+.appbar .spacer { flex: 1; }
+
+.wrap { max-width: 1440px; margin: 0 auto; padding: 24px max(16px, env(safe-area-inset-right)) 48px max(16px, env(safe-area-inset-left)); display: grid; gap: 16px; }
+
+/* Header card */
+.head { display: grid; gap: 8px; }
+.overline { font-family: var(--mono); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--med); }
+h1 { margin: 0; font-size: 24px; line-height: 32px; font-weight: 500; text-wrap: balance; }
+.summary { margin: 0; color: var(--med); max-width: 88ch; font-size: 14px; line-height: 22px; }
+.meta { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+.chip { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; border-radius: var(--r-sm); background: var(--surface-2); border: 1px solid var(--outline-subtle); color: var(--med); font-size: 12px; }
+.chip b { color: var(--hi); font-weight: 500; font-family: var(--mono); }
+
+/* Main grid */
+.main { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 16px; align-items: start; }
+@media (max-width: 980px) { .main { grid-template-columns: minmax(0, 1fr); } }
+
+.panel { background: var(--surface); border: 1px solid var(--outline); border-radius: var(--r); overflow: hidden; min-width: 0; }
+.panel-title { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 12px 16px; border-bottom: 1px solid var(--outline); font-weight: 500; }
+.panel-title .overline { font-size: 11px; }
+
+/* Map */
+.mapbox { position: relative; }
+#map { height: min(64vh, 620px); min-height: 380px; background: #0b0b0b; }
+.leaflet-container { font-family: var(--sans); background: #0b0b0b; }
+.leaflet-top, .leaflet-bottom { z-index: 450; }
+.leaflet-pane { z-index: 1; }
+.leaflet-control-attribution { background: hsla(0 0% 7% / .8) !important; color: var(--med) !important; font-size: 11px; padding: 2px 8px !important; }
+.leaflet-control-attribution a { color: var(--primary) !important; }
+.leaflet-bar a, .leaflet-bar a:hover { background: var(--surface-2); color: var(--hi); border-bottom: 1px solid var(--outline); }
+.leaflet-bar { border: 1px solid var(--outline) !important; border-radius: var(--r) !important; overflow: hidden; box-shadow: none !important; }
+.map-tools { position: absolute; top: 12px; right: 12px; z-index: 500; display: flex; gap: 8px; }
+.seg { display: inline-flex; background: var(--surface-2); border: 1px solid var(--outline); border-radius: var(--r); overflow: hidden; }
+.seg button { border: 0; background: transparent; color: var(--med); font: 500 12px/1 var(--sans); padding: 8px 12px; cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--selected); color: var(--primary); }
+.seg button:hover { background: var(--hover); color: var(--hi); }
+.legend { position: absolute; left: 12px; bottom: 28px; z-index: 500; background: hsla(0 0% 12% / .92); border: 1px solid var(--outline); border-radius: var(--r); padding: 10px 12px; display: grid; gap: 6px; font-size: 12px; color: var(--med); }
+.legend .row { display: flex; align-items: center; gap: 8px; }
+.legend i { width: 18px; height: 4px; border-radius: 2px; display: inline-block; }
+
+.ring-label { font: 500 11px/1 var(--mono); color: #fff; background: hsla(0 0% 7% / .75); padding: 4px 8px; border-radius: 3px; white-space: nowrap; transform: translate(-50%, -50%); }
+.pin-label { font: 500 11px/1.2 var(--sans); color: var(--hi); background: hsla(0 0% 12% / .92); border: 1px solid var(--outline); padding: 6px 10px; border-radius: var(--r-sm); white-space: nowrap; }
+
+/* Drone marker */
+.drone { position: relative; width: 44px; height: 44px; }
+.drone .halo { position: absolute; inset: 0; border-radius: 50%; border: 2px solid var(--c, var(--success)); background: color-mix(in srgb, var(--c, var(--success)) 18%, transparent); animation: pulse 1.6s ease-out infinite; }
+.drone svg { position: absolute; inset: 8px; width: 28px; height: 28px; transition: transform .2s linear; }
+@keyframes pulse { 0% { transform: scale(.7); opacity: 1 } 100% { transform: scale(1.35); opacity: 0 } }
+@media (prefers-reduced-motion: reduce) { .drone .halo { animation: none; opacity: .8 } }
+.dock { width: 30px; height: 30px; border-radius: 6px; background: var(--surface-2); border: 2px solid var(--primary); display: grid; place-items: center; color: var(--primary); }
+
+/* Player */
+.player { padding: 12px 16px 16px; display: grid; gap: 12px; border-top: 1px solid var(--outline); }
+.controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.btn { display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 16px; border-radius: var(--r); border: 1px solid transparent; font: 500 14px/1 var(--sans); cursor: pointer; }
+.btn-filled { background: var(--primary); color: var(--on-primary); }
+.btn-filled:hover { background: hsl(217 61% 67%); }
+.btn-outline { background: transparent; color: var(--hi); border-color: hsla(0 0% 100% / .38); }
+.btn-outline:hover { background: hsla(0 0% 100% / .08); }
+.btn-text { background: transparent; color: var(--primary); padding: 0 12px; }
+.btn-text:hover { background: var(--hover); }
+.btn:focus-visible, .seg button:focus-visible, .ev:focus-visible, #scrub:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.clock { margin-left: auto; font: 500 20px/1 var(--mono); color: var(--hi); font-variant-numeric: tabular-nums; }
+.clock small { font-size: 11px; color: var(--med); margin-left: 4px; }
+
+.timeline { position: relative; height: 44px; }
+.track { position: absolute; left: 0; right: 0; top: 18px; height: 10px; border-radius: 5px; overflow: hidden; background: var(--surface-3); }
+.track span { position: absolute; top: 0; bottom: 0; }
+.band { position: absolute; top: 12px; height: 22px; border: 1px dashed var(--error); border-radius: 4px; background: var(--error-bg); pointer-events: none; }
+.tick { position: absolute; top: 4px; width: 2px; height: 36px; background: hsla(0 0% 100% / .55); transform: translateX(-1px); pointer-events: none; }
+.tick.key { background: var(--hi); width: 2px; }
+.head-line { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--primary); transform: translateX(-1px); pointer-events: none; box-shadow: 0 0 0 1px hsla(0 0% 0% / .4); }
+.head-line::after { content: ""; position: absolute; top: -2px; left: -5px; width: 12px; height: 12px; border-radius: 50%; background: var(--primary); }
+#scrub { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
+.axis { display: flex; justify-content: space-between; font: 400 11px/1 var(--mono); color: var(--med); }
+
+/* Side panel */
+.side { display: grid; gap: 16px; }
+.tele { display: grid; }
+.tele .r { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 16px; border-bottom: 1px solid var(--outline-subtle); }
+.tele .r:last-child { border-bottom: 0; }
+.tele .k { color: var(--med); }
+.tele .v { font-family: var(--mono); font-variant-numeric: tabular-nums; color: var(--hi); text-align: right; }
+.bars { display: inline-flex; gap: 3px; align-items: flex-end; height: 16px; vertical-align: middle; margin-right: 8px; }
+.bars i { width: 5px; border-radius: 1px; background: var(--surface-3); }
+.bars i:nth-child(1) { height: 4px } .bars i:nth-child(2) { height: 7px } .bars i:nth-child(3) { height: 10px } .bars i:nth-child(4) { height: 13px } .bars i:nth-child(5) { height: 16px }
+.status { display: inline-flex; align-items: center; gap: 6px; padding: 4px 8px; border-radius: var(--r-sm); font: 500 12px/1.2 var(--sans); text-align: left; }
+.st-ok { background: var(--success-bg); color: var(--success); }
+.st-warn { background: var(--caution-bg); color: var(--caution); }
+.st-bad { background: var(--error-bg); color: var(--error); }
+.st-info { background: var(--info-bg); color: var(--info); }
+.st-idle { background: var(--surface-3); color: var(--med); }
+.status .material-icons { font-size: 16px; }
+
+.events { max-height: 360px; overflow-y: auto; }
+.ev { display: grid; grid-template-columns: 64px 1fr; gap: 12px; padding: 10px 16px; border: 0; border-bottom: 1px solid var(--outline-subtle); background: transparent; color: inherit; text-align: left; width: 100%; font: inherit; cursor: pointer; }
+.ev:hover { background: var(--hover); }
+.ev.active { background: var(--selected); }
+.ev .t { font: 500 12px/20px var(--mono); color: var(--med); }
+.ev .d { color: var(--hi); }
+.ev .d small { display: block; color: var(--med); font-size: 12px; line-height: 18px; margin-top: 2px; }
+.dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; vertical-align: 1px; }
+
+/* Findings */
+.findings { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
+@media (max-width: 980px) { .findings { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 520px) { .findings { grid-template-columns: minmax(0, 1fr); } }
+.kpi { padding: 16px; display: grid; gap: 6px; align-content: start; }
+.kpi .n { font: 500 28px/32px var(--mono); }
+.kpi p { margin: 0; color: var(--med); font-size: 13px; line-height: 19px; }
+.answer { padding: 16px; display: grid; gap: 12px; }
+.answer h2 { margin: 0; font-size: 16px; font-weight: 500; }
+.answer p, .answer li { margin: 0; color: var(--med); line-height: 22px; max-width: 92ch; }
+.answer ul { margin: 0; padding-left: 20px; display: grid; gap: 6px; }
+.foot { color: var(--med); font-size: 12px; line-height: 18px; }
+</style>
+</head>
+<body>
+<header class="appbar">
+  <img class="logo" src="https://assets.flytbase.com/flytnow/customer-branding/FlytBase/fb-logo.svg" alt="FlytBase" height="28">
+  <span class="sep"></span>
+  <span class="crumb">Flight analysis · <b>Ticket 6b05b98eeea6a457cad9e85d</b></span>
+  <span class="spacer"></span>
+</header>
+
+<main class="wrap">
+  <section class="head">
+    <div class="overline">Flight replay · 24 Nov 2026 · 12:13–12:39 GMT</div>
+    <h1>Loss of control signal during flight</h1>
+    <p class="summary">From 12:16 the radio link between the dock and the drone dropped to 1 of 5 bars and stayed there. At 12:18:30 the drone left live control and held its position about 1.85 km north of the dock. The connection between FlytBase and the dock stayed up for the whole flight: all 29 return-home commands sent between 12:20 and 12:35 reached the dock, but the dock could not pass them to the drone and each one timed out. The 4G backup link showed no signal for the whole flight. At 12:35:58 the drone started its own return to home. As it flew south the radio link came back to 5 bars, and it landed in the dock at 12:39.</p>
+    <div class="meta">
+      <span class="chip">Flight ID <b>aa1fd799-25ed-45e3-a4e6-bb1d523972a6</b></span>
+      <span class="chip">Dock <b>8UUXN7700A0DNS</b></span>
+      <span class="chip">Drone <b>1581F8HGX257F00A0N8F</b></span>
+    </div>
+  </section>
+
+  <section class="main">
+    <div class="panel">
+      <div class="mapbox">
+        <div id="map" role="region" aria-label="Map of the flight path"></div>
+        <div class="map-tools">
+          <div class="seg" role="group" aria-label="Base map">
+            <button type="button" id="b-sat" aria-pressed="true">Satellite</button>
+            <button type="button" id="b-map" aria-pressed="false">Map</button>
+          </div>
+          <div class="seg"><button type="button" id="b-follow" aria-pressed="true">Follow drone</button></div>
+        </div>
+        <div class="legend" aria-label="Radio link legend">
+          <div class="overline">Radio link (dock to drone)</div>
+          <div class="row"><i style="background:var(--success)"></i>Good · 4–5 bars</div>
+          <div class="row"><i style="background:var(--caution)"></i>Weak · 2–3 bars</div>
+          <div class="row"><i style="background:var(--error)"></i>Very weak or lost · 0–1 bar</div>
+        </div>
+      </div>
+      <div class="player">
+        <div class="controls">
+          <button type="button" class="btn btn-filled" id="play"><span class="material-icons" id="play-ic">play_arrow</span><span id="play-tx">Play</span></button>
+          <div class="seg" role="group" aria-label="Playback speed">
+            <button type="button" data-speed="10" aria-pressed="false">10×</button>
+            <button type="button" data-speed="30" aria-pressed="true">30×</button>
+            <button type="button" data-speed="60" aria-pressed="false">60×</button>
+          </div>
+          <button type="button" class="btn btn-outline" id="jump-lost"><span class="material-icons">gps_off</span>Jump to control lost</button>
+          <button type="button" class="btn btn-text" id="restart"><span class="material-icons">replay</span>Restart</button>
+          <div class="clock mono" aria-live="off"><span id="clock">12:13:10</span><small>GMT</small></div>
+        </div>
+        <div class="timeline" id="timeline">
+          <div class="track" id="track"></div>
+          <div id="marks"></div>
+          <div class="head-line" id="headline"></div>
+          <input type="range" id="scrub" min="0" max="1000" step="1" value="0" aria-label="Flight time">
+        </div>
+        <div class="axis mono"><span>12:13</span><span>12:20</span><span>12:25</span><span>12:30</span><span>12:35</span><span>12:40</span></div>
+      </div>
+    </div>
+
+    <aside class="side">
+      <div class="panel">
+        <div class="panel-title"><span>Live telemetry</span><span class="overline">At playback time</span></div>
+        <div class="tele">
+          <div class="r"><span class="k">Control</span><span class="v" id="v-ctl"></span></div>
+          <div class="r"><span class="k">Radio link (dock to drone)</span><span class="v" id="v-rf"></span></div>
+          <div class="r"><span class="k">4G backup link</span><span class="v"><span class="bars" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>No signal</span></div>
+          <div class="r"><span class="k">FlytBase to dock</span><span class="v" style="color:var(--success)">Connected</span></div>
+          <div class="r"><span class="k">Distance from dock</span><span class="v" id="v-dist"></span></div>
+          <div class="r"><span class="k">Height above dock</span><span class="v" id="v-alt"></span></div>
+          <div class="r"><span class="k">Battery</span><span class="v" id="v-bat"></span></div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-title"><span>Flight events</span><span class="overline">Select to jump</span></div>
+        <div class="events" id="events"></div>
+      </div>
+    </aside>
+  </section>
+
+  <section class="findings">
+    <div class="panel kpi"><span class="overline">Radio link</span><span class="n" style="color:var(--error)">1 bar</span><p>From 12:16 to 12:35 over the area where the drone held position. 0 bars at 12:36.</p></div>
+    <div class="panel kpi"><span class="overline">Return-home commands</span><span class="n" style="color:var(--error)">29</span><p>Sent 12:20–12:35. All reached the dock. Each timed out between the dock and the drone (DJI code 325004).</p></div>
+    <div class="panel kpi"><span class="overline">4G backup link</span><span class="n" style="color:var(--caution)">0 bars</span><p>No 4G signal for the whole flight, so the drone had no second path when the radio link weakened.</p></div>
+    <div class="panel kpi"><span class="overline">FlytBase to dock</span><span class="n" style="color:var(--success)">Up</span><p>No disconnections. The control heartbeat between FlytBase and the dock ran without a gap for the whole flight.</p></div>
+  </section>
+
+  <section class="panel answer">
+    <h2>Is video prioritised over control?</h2>
+    <p>FlytBase does not prioritise video over control, or control over video. FlytBase shows the video it receives and sends every control command the pilot gives. In this flight both kept flowing between FlytBase and the dock.</p>
+    <p>Video and control both travel over DJI's radio link between the dock and the drone. When that link fell to 1 bar, the drone stopped accepting control commands while video continued to arrive. How the DJI link handles video and control when the signal is this weak is set by DJI's firmware, not by FlytBase.</p>
+    <h2>What we recommend</h2>
+    <ul>
+      <li>Check that 4G Enhanced Transmission is set up and has signal on this drone. With 4G available, the drone has a second path for control when the radio link weakens.</li>
+      <li>Review the area about 1.5–2 km north of the dock for obstructions between the dock and the drone at this height (about 100 m above the dock).</li>
+      <li>When the radio link drops to 1–2 bars, move the drone back towards the dock before it reaches this area.</li>
+    </ul>
+    <p class="foot">Source: FlytBase flight telemetry for flight aa1fd799. Positions are 10-second averages of the drone's reported GPS position. Radio link is the lowest value reported by the dock in each 10 seconds. Heights are relative to the dock. All times GMT.</p>
+  </section>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+(function () {
+  // ---- Data (FlytBase telemetry, flight aa1fd799, 24 Nov 2026). Time = seconds after 12:00:00 GMT. ----
+  const DOCK = [51.533877, -0.110441], DOCK_H = 95;
+  const T0 = 790, T1 = 2430;
+  // [minute, tens-of-seconds, lat, lon, height, battery]; each row is the 10 s bucket starting at mm:s0
+  const raw = [
+    [13,1,51.533877,-0.110441,95,94],[13,2,51.533877,-0.110441,100,93],[13,3,51.533877,-0.110442,152,93],[13,4,51.533877,-0.110442,195,92],[13,5,51.533900,-0.110436,196,92],
+    [14,0,51.533920,-0.110435,196,91],[14,1,51.534616,-0.110237,196,91],[14,2,51.536188,-0.109833,197,90],[14,3,51.537808,-0.109488,197,89],[14,4,51.539463,-0.109407,197,89],[14,5,51.541113,-0.109331,197,88],
+    [15,0,51.542768,-0.109257,198,88],[15,1,51.544421,-0.109182,197,87],[15,2,51.546074,-0.109105,198,87],[15,3,51.547725,-0.109030,198,86],[15,4,51.549297,-0.108942,198,86],[15,5,51.550268,-0.108654,197,85],
+    [16,0,51.551059,-0.109204,198,84],[16,1,51.551873,-0.110267,197,84],[16,2,51.552242,-0.110799,197,83],[16,3,51.552264,-0.110845,198,83],[16,4,51.552264,-0.110845,197,82],[16,5,51.552264,-0.110845,197,82],
+    [17,0,51.552264,-0.110845,198,82],[17,1,51.552085,-0.110937,197,81],[17,2,51.551671,-0.111140,197,80],[17,3,51.551669,-0.111145,197,80],[17,4,51.551428,-0.111123,197,79],[17,5,51.550906,-0.110808,197,79],
+    [18,0,51.550730,-0.110860,197,79],[18,1,51.550500,-0.110842,197,78],[18,2,51.550544,-0.110016,197,78]
+  ];
+  // Hold position 12:18:30–12:35:50 (drone reported the same point to within 1 m)
+  const HOLD = [51.550555, -0.109912];
+  const holdBat = [77,77,76, 76,75,75,75,74,74, 73,73,72,72,71,71, 71,70,70,69,69,68, 68,67,67,67,66,66, 65,65,64,64,63,63, 63,62,62,61,61,60, 60,59,59,58,58,58, 57,57,56,56,55,55, 54,54,53,53,53,52, 51,51,50,50,50,49, 49,48,48,47,47,46, 46,45,45,44,44,44, 43,43,42,42,41,41, 40,40,39,39,38,38, 37,37,36,36,35,35, 34,34,33,33,32,32, 31,31,30,30,29,29];
+  for (let i = 0; i < holdBat.length; i++) { const s = 1110 + i * 10; raw.push([Math.floor(s / 60) - 0, Math.floor((s % 60) / 10), HOLD[0], HOLD[1], 197, holdBat[i]]); }
+  raw.push(
+    [36,0,51.550419,-0.109943,197,28],[36,1,51.549599,-0.109987,197,28],[36,2,51.548481,-0.110016,197,27],[36,3,51.547314,-0.110053,197,27],[36,4,51.546189,-0.110085,195,26],[36,5,51.545069,-0.110118,195,25],
+    [37,0,51.543915,-0.110151,195,25],[37,1,51.542721,-0.110186,195,25],[37,2,51.541560,-0.110220,195,24],[37,3,51.540421,-0.110252,195,23],[37,4,51.539309,-0.110285,195,23],[37,5,51.538163,-0.110317,195,22],
+    [38,0,51.536992,-0.110351,195,22],[38,1,51.535750,-0.110387,195,21],[38,2,51.534705,-0.110417,195,21],[38,3,51.534090,-0.110435,195,21],[38,4,51.533885,-0.110441,195,20],[38,5,51.533876,-0.110441,194,20],
+    [39,0,51.533876,-0.110441,145,19],[39,1,51.533877,-0.110441,108,19],[39,2,51.533877,-0.110441,97,18],[39,3,51.533877,-0.110441,95,18],[39,4,51.533877,-0.110441,95,18],[39,5,51.533877,-0.110441,95,18],
+    [40,0,51.533877,-0.110441,95,18],[40,1,51.533877,-0.110441,95,18],[40,2,51.533877,-0.110441,95,18]
+  );
+  const P = raw.map(r => ({ t: r[0] * 60 + r[1] * 10 + 5, lat: r[2], lon: r[3], h: r[4], b: r[5] })).sort((a, b) => a.t - b.t);
+
+  // Radio link (dock SDR quality, 0–5 bars): [from second, bars]
+  const RF = [[790,5],[910,4],[950,3],[960,2],[980,1],[990,2],[1000,3],[1040,2],[1050,3],[1060,2],[1080,1],[1090,3],[1110,1],[2160,0],[2180,2],[2190,3],[2200,2],[2210,4],[2270,5]];
+  const rfAt = t => { let v = RF[0][1]; for (const [s, b] of RF) { if (t >= s) v = b; else break; } return v; };
+  const rfColor = b => b >= 4 ? 'var(--success)' : b >= 2 ? 'var(--caution)' : 'var(--error)';
+  const rfHex = b => b >= 4 ? '#2bc87b' : b >= 2 ? '#fdb022' : '#f0503f';
+
+  // Control state from the drone's reported flight mode
+  const PHASES = [
+    [790, 'On the dock', 'st-idle', 'flight_land'],
+    [803, 'Taking off', 'st-info', 'flight_takeoff'],
+    [848, 'Live control active', 'st-ok', 'sports_esports'],
+    [950, 'Live control unstable', 'st-warn', 'warning'],
+    [1110, 'Live control lost · holding position', 'st-bad', 'gps_off'],
+    [2158, 'Returning to home on its own', 'st-info', 'home'],
+    [2325, 'Landing', 'st-info', 'flight_land'],
+    [2362, 'Landed in dock', 'st-idle', 'check_circle']
+  ];
+  const phaseAt = t => { let p = PHASES[0]; for (const ph of PHASES) { if (t >= ph[0]) p = ph; else break; } return p; };
+
+  const EVENTS = [
+    [803, 'Take-off from the dock', '', 'var(--info)'],
+    [848, 'Live control active', 'Pilot flies the drone north.', 'var(--success)'],
+    [910, 'Radio link starts to drop', '5 to 4 bars.', 'var(--caution)'],
+    [980, 'Radio link down to 1 bar', 'Live control switches on and off as the signal changes.', 'var(--error)'],
+    [1110, 'Live control lost', 'The drone holds its position about 1.85 km north of the dock. Radio link at 1 bar.', 'var(--error)'],
+    [1203, 'First return-home command', 'Reached the dock. The dock could not reach the drone: command timed out (DJI code 325004).', 'var(--error)'],
+    [1682, 'Return-home key pressed in the flight view', 'The command failed: the drone could not be reached.', 'var(--error)'],
+    [1797, 'Joystick input not sent', 'Manual control was not active.', 'var(--error)'],
+    [2132, 'Last of 29 return-home commands', 'All 29 timed out between the dock and the drone.', 'var(--error)'],
+    [2158, 'Drone starts return to home on its own', 'Battery 29%.', 'var(--info)'],
+    [2160, 'Radio link at 0 bars for about 20 seconds', 'Then recovers as the drone flies south.', 'var(--error)'],
+    [2270, 'Radio link back to 5 bars', '', 'var(--success)'],
+    [2325, 'Landing', '', 'var(--info)'],
+    [2362, 'Landed in the dock', 'Battery 18%.', 'var(--info)']
+  ];
+
+  const fmt = t => { t = Math.round(t); const h = 12 + Math.floor(t / 3600), m = Math.floor((t % 3600) / 60), s = t % 60; return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`; };
+
+  // ---- Smooth position: Catmull-Rom through the 10 s points ----
+  function posAt(t) {
+    if (t <= P[0].t) return P[0];
+    const n = P.length - 1;
+    if (t >= P[n].t) return P[n];
+    let i = 0; while (i < n - 1 && P[i + 1].t <= t) i++;
+    const p0 = P[Math.max(0, i - 1)], p1 = P[i], p2 = P[i + 1], p3 = P[Math.min(n, i + 2)];
+    const u = (t - p1.t) / (p2.t - p1.t), u2 = u * u, u3 = u2 * u;
+    const cr = (a, b, c, d) => 0.5 * ((2 * b) + (-a + c) * u + (2 * a - 5 * b + 4 * c - d) * u2 + (-a + 3 * b - 3 * c + d) * u3);
+    return { lat: cr(p0.lat, p1.lat, p2.lat, p3.lat), lon: cr(p0.lon, p1.lon, p2.lon, p3.lon), h: p1.h + (p2.h - p1.h) * u, b: u < 0.5 ? p1.b : p2.b };
+  }
+  const R = 6371000, rad = Math.PI / 180;
+  const dist = (a, b) => { const dLat = (b[0] - a[0]) * rad, dLon = (b[1] - a[1]) * rad; const x = Math.sin(dLat / 2) ** 2 + Math.cos(a[0] * rad) * Math.cos(b[0] * rad) * Math.sin(dLon / 2) ** 2; return 2 * R * Math.asin(Math.sqrt(x)); };
+  const bearing = (a, b) => { const y = Math.sin((b[1] - a[1]) * rad) * Math.cos(b[0] * rad); const x = Math.cos(a[0] * rad) * Math.sin(b[0] * rad) - Math.sin(a[0] * rad) * Math.cos(b[0] * rad) * Math.cos((b[1] - a[1]) * rad); return (Math.atan2(y, x) / rad + 360) % 360; };
+
+  // ---- Map ----
+  const map = L.map('map', { zoomControl: true, attributionControl: true, preferCanvas: false }).setView([51.5432, -0.1103], 14);
+  const sat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19, attribution: 'Imagery © Esri, Maxar, Earthstar Geographics' });
+  const satLabels = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19, attribution: 'Labels © Esri' });
+  const dark = L.layerGroup([L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19, maxNativeZoom: 16, attribution: 'Map © Esri, HERE, Garmin, OpenStreetMap contributors' }), L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19, maxNativeZoom: 16 })]);
+  sat.addTo(map); satLabels.addTo(map);
+  map.attributionControl.setPrefix('<a href="https://leafletjs.com" target="_blank" rel="noopener">Leaflet</a>');
+
+  // Distance rings from the dock
+  [500, 1000, 1500, 2000].forEach(r => {
+    L.circle(DOCK, { radius: r, color: '#ffffff', weight: 1, opacity: .45, dashArray: '2 6', fill: false, interactive: false }).addTo(map);
+    const north = [DOCK[0] + r / 111320, DOCK[1]];
+    L.marker(north, { interactive: false, icon: L.divIcon({ className: '', html: `<div class="ring-label">${r >= 1000 ? (r / 1000) + ' km' : r + ' m'}</div>`, iconSize: [0, 0] }) }).addTo(map);
+  });
+
+  // Full planned path (faint) and the RF-coloured path drawn as the replay advances
+  L.polyline(P.map(p => [p.lat, p.lon]), { color: '#ffffff', weight: 2, opacity: .25, dashArray: '4 6', interactive: false }).addTo(map);
+  const trail = L.layerGroup().addTo(map);
+
+  // Area where control was lost
+  L.circle(HOLD, { radius: 90, color: '#f0503f', weight: 2, dashArray: '4 4', fillColor: '#f0503f', fillOpacity: .12, interactive: false }).addTo(map);
+  L.marker([HOLD[0] + 0.0013, HOLD[1]], { interactive: false, icon: L.divIcon({ className: '', html: '<div class="pin-label" style="transform:translate(-50%,-100%)">Control lost · held here 12:18–12:35</div>', iconSize: [0, 0] }) }).addTo(map);
+
+  // Dock
+  L.marker(DOCK, { icon: L.divIcon({ className: '', html: '<div class="dock"><span class="material-icons" style="font-size:18px">home</span></div>', iconSize: [30, 30], iconAnchor: [15, 15] }), zIndexOffset: 500 }).bindTooltip('Dock 8UUXN7700A0DNS', { direction: 'top', offset: [0, -14] }).addTo(map);
+
+  // Drone
+  const droneSvg = '<svg viewBox="0 0 28 28" aria-hidden="true"><g fill="none" stroke="#fff" stroke-width="1.6"><line x1="7" y1="7" x2="21" y2="21"/><line x1="21" y1="7" x2="7" y2="21"/><circle cx="6" cy="6" r="4"/><circle cx="22" cy="6" r="4"/><circle cx="6" cy="22" r="4"/><circle cx="22" cy="22" r="4"/></g><rect x="10.5" y="10.5" width="7" height="7" rx="1.5" fill="#fff"/><path d="M14 2 L17 7 L11 7 Z" fill="hsl(217 95% 76%)"/></svg>';
+  const droneIcon = L.divIcon({ className: '', html: `<div class="drone" id="drone"><div class="halo"></div>${droneSvg}</div>`, iconSize: [44, 44], iconAnchor: [22, 22] });
+  const drone = L.marker(DOCK, { icon: droneIcon, zIndexOffset: 1000, interactive: false }).addTo(map);
+
+  map.fitBounds(L.latLngBounds(P.map(p => [p.lat, p.lon])).pad(0.25));
+
+  // ---- Timeline ----
+  const span = T1 - T0, pct = t => ((t - T0) / span) * 100;
+  const track = document.getElementById('track');
+  for (let i = 0; i < RF.length; i++) {
+    const a = Math.max(RF[i][0], T0), b = i + 1 < RF.length ? RF[i + 1][0] : T1;
+    const s = document.createElement('span'); s.style.left = pct(a) + '%'; s.style.width = (pct(b) - pct(a)) + '%'; s.style.background = rfColor(RF[i][1]); track.appendChild(s);
+  }
+  const marks = document.getElementById('marks');
+  const band = document.createElement('div'); band.className = 'band'; band.style.left = pct(1203) + '%'; band.style.width = (pct(2135) - pct(1203)) + '%'; band.title = '29 return-home commands, all timed out'; marks.appendChild(band);
+  [[803, false], [1110, true], [2158, true], [2362, false]].forEach(([t, key]) => { const d = document.createElement('div'); d.className = 'tick' + (key ? ' key' : ''); d.style.left = pct(t) + '%'; marks.appendChild(d); });
+
+  // Events list
+  const evBox = document.getElementById('events');
+  const evEls = EVENTS.map(([t, title, sub, c]) => {
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'ev';
+    b.innerHTML = `<span class="t">${fmt(t)}</span><span class="d"><span class="dot" style="background:${c}"></span>${title}${sub ? `<small>${sub}</small>` : ''}</span>`;
+    b.addEventListener('click', () => { seek(Math.max(T0, t - 5)); });
+    evBox.appendChild(b); return [t, b];
+  });
+
+  // ---- Playback ----
+  let t = T0, playing = false, speed = 30, last = 0, follow = true, builtTo = T0, heading = 0, lastActive = null;
+  const $ = id => document.getElementById(id);
+  const scrub = $('scrub');
+
+  function rebuildTrail(upTo) {
+    trail.clearLayers();
+    let prev = posAt(T0), pt = T0;
+    for (let s = T0 + 2; s <= upTo; s += 2) { const q = posAt(s); trail.addLayer(L.polyline([[prev.lat, prev.lon], [q.lat, q.lon]], { color: rfHex(rfAt(s)), weight: 4, opacity: .95, interactive: false })); prev = q; pt = s; }
+    builtTo = pt;
+  }
+  function extendTrail(upTo) {
+    if (upTo < builtTo) { rebuildTrail(upTo); return; }
+    let prev = posAt(builtTo);
+    for (let s = builtTo + 2; s <= upTo; s += 2) { const q = posAt(s); trail.addLayer(L.polyline([[prev.lat, prev.lon], [q.lat, q.lon]], { color: rfHex(rfAt(s)), weight: 4, opacity: .95, interactive: false })); prev = q; builtTo = s; }
+  }
+
+  function render() {
+    const p = posAt(t), ahead = posAt(Math.min(T1, t + 3));
+    const ll = [p.lat, p.lon];
+    drone.setLatLng(ll);
+    if (dist(ll, [ahead.lat, ahead.lon]) > 3) heading = bearing(ll, [ahead.lat, ahead.lon]);
+    const el = document.getElementById('drone');
+    const bars = rfAt(t);
+    if (el) { el.style.setProperty('--c', rfColor(bars)); const svg = el.querySelector('svg'); if (svg) svg.style.transform = `rotate(${heading}deg)`; }
+    extendTrail(t);
+    if (follow) map.panTo(ll, { animate: false });
+
+    $('clock').textContent = fmt(t);
+    const ph = phaseAt(t);
+    $('v-ctl').innerHTML = `<span class="status ${ph[2]}"><span class="material-icons">${ph[3]}</span>${ph[1]}</span>`;
+    $('v-rf').innerHTML = `<span class="bars" aria-hidden="true">${[1, 2, 3, 4, 5].map(i => `<i style="background:${i <= bars ? rfColor(bars) : ''}"></i>`).join('')}</span>${bars} of 5`;
+    $('v-dist').textContent = (dist(DOCK, ll) / 1000).toFixed(2) + ' km';
+    $('v-alt').textContent = Math.max(0, Math.round(p.h - DOCK_H)) + ' m';
+    $('v-bat').textContent = p.b + '%';
+    $('headline').style.left = pct(t) + '%';
+    scrub.value = Math.round(((t - T0) / span) * 1000);
+    scrub.setAttribute('aria-valuetext', fmt(t) + ' GMT');
+
+    let active = null; for (const [et, b] of evEls) { if (t >= et) active = b; }
+    if (active !== lastActive) { evEls.forEach(([, b]) => b.classList.toggle('active', b === active)); lastActive = active; }
+  }
+
+  function frame(now) {
+    if (!playing) return;
+    const dt = last ? (now - last) / 1000 : 0; last = now;
+    t = Math.min(T1, t + dt * speed);
+    render();
+    if (t >= T1) { setPlaying(false); return; }
+    requestAnimationFrame(frame);
+  }
+  function setPlaying(on) {
+    playing = on; last = 0;
+    $('play-ic').textContent = on ? 'pause' : 'play_arrow'; $('play-tx').textContent = on ? 'Pause' : 'Play';
+    if (on) { if (t >= T1) { t = T0; rebuildTrail(T0); } requestAnimationFrame(frame); }
+  }
+  function seek(nt) { t = Math.max(T0, Math.min(T1, nt)); if (t < builtTo) rebuildTrail(t); render(); }
+
+  $('play').addEventListener('click', () => setPlaying(!playing));
+  $('restart').addEventListener('click', () => { seek(T0); setPlaying(true); });
+  $('jump-lost').addEventListener('click', () => { seek(1080); map.setView(HOLD, 16); });
+  scrub.addEventListener('input', () => seek(T0 + (scrub.value / 1000) * span));
+  document.querySelectorAll('[data-speed]').forEach(b => b.addEventListener('click', () => {
+    speed = +b.dataset.speed; document.querySelectorAll('[data-speed]').forEach(x => x.setAttribute('aria-pressed', x === b ? 'true' : 'false'));
+  }));
+  $('b-sat').addEventListener('click', () => { map.removeLayer(dark); sat.addTo(map); satLabels.addTo(map);
+  map.attributionControl.setPrefix('<a href="https://leafletjs.com" target="_blank" rel="noopener">Leaflet</a>'); $('b-sat').setAttribute('aria-pressed', 'true'); $('b-map').setAttribute('aria-pressed', 'false'); });
+  $('b-map').addEventListener('click', () => { map.removeLayer(sat); map.removeLayer(satLabels); dark.addTo(map); $('b-map').setAttribute('aria-pressed', 'true'); $('b-sat').setAttribute('aria-pressed', 'false'); });
+  $('b-follow').addEventListener('click', e => { follow = !follow; e.currentTarget.setAttribute('aria-pressed', String(follow)); });
+  document.addEventListener('keydown', e => { if (e.code === 'Space' && e.target === document.body) { e.preventDefault(); setPlaying(!playing); } });
+
+  render();
+})();
+</script>
+</body>
+</html>
